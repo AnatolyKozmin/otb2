@@ -16,8 +16,12 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Конфигурация
-BOT_TOKEN = os.getenv('TOKEN')
-ADDRESS = "Вешняковский проезд"
+BOT_TOKEN = os.getenv('BOT_TOKEN', '8218050252:AAHkTQfzIqOhx2vfO087CmuoI2Yq_xG2VNk')
+ADDRESS = os.getenv('ADDRESS', 'Вешняковский проезд')
+
+# Проверка токена
+if not BOT_TOKEN:
+    raise ValueError("BOT_TOKEN не установлен! Установите переменную окружения BOT_TOKEN или используйте значение по умолчанию.")
 
 # Инициализация бота и диспетчера
 bot = Bot(token=BOT_TOKEN)

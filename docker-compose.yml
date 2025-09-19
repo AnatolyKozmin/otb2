@@ -9,8 +9,10 @@ services:
       # Монтируем папку с данными для сохранения записей
       - ./data:/app/data
     environment:
-      # Переменные окружения (можно вынести токен сюда для безопасности)
+      # Переменные окружения
       - TZ=Europe/Moscow
+      - BOT_TOKEN=8218050252:AAHkTQfzIqOhx2vfO087CmuoI2Yq_xG2VNk
+      - ADDRESS=Вешняковский проезд
     networks:
       - bot-network
     # Логирование

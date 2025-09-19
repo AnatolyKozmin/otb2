@@ -20,7 +20,7 @@ coverage.xml
 .git/
 .gitignore
 README.md
-.env
+# .env
 .nyc_output
 node_modules/
 .DS_Store
