@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  telegram-bot:
+    build: .
+    container_name: interview-bot
+    restart: unless-stopped
+    volumes:
+      # Монтируем папку с данными для сохранения записей
+      - ./data:/app/data
+    environment:
+      # Переменные окружения (можно вынести токен сюда для безопасности)
+      - TZ=Europe/Moscow
+    networks:
+      - bot-network
+    # Логирование
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  bot-network:
+    driver: bridge
+
+volumes:
+  bot-data:
+    driver: local
