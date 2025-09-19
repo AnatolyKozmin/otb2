@@ -40,6 +40,15 @@ def save_data(data):
     with open('data.json', 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
+def has_active_booking(user_id):
+    """Проверяет, есть ли у пользователя активная запись"""
+    data = load_data()
+    has_booking = user_id in data['users'] and data['users'][user_id]
+    logger.info(f"Проверка записи для {user_id}: {has_booking}")
+    if has_booking:
+        logger.info(f"Активная запись: {data['users'][user_id]}")
+    return has_booking
+
 # Генерация слотов для дат
 def generate_slots_for_dates():
     """Генерирует слоты для всех дат с рандомной доступностью"""
@@ -188,7 +197,7 @@ async def select_slot(callback: types.CallbackQuery):
     
     # Проверяем, есть ли уже запись у пользователя
     user_id = str(callback.from_user.id)
-    if user_id in data['users'] and data['users'][user_id]:
+    if has_active_booking(user_id):
         await callback.answer("❌ У вас уже есть запись. Сначала отмените текущую запись.")
         return
     
@@ -230,7 +239,7 @@ async def confirm_booking(callback: types.CallbackQuery):
         return
     
     # Проверяем, есть ли уже запись у пользователя
-    if user_id in data['users'] and data['users'][user_id]:
+    if has_active_booking(user_id):
         await callback.answer("❌ У вас уже есть запись")
         return
     
@@ -346,6 +355,9 @@ async def confirm_cancel(callback: types.CallbackQuery):
     data = load_data()
     user_id = str(callback.from_user.id)
     
+    logger.info(f"Попытка отмены записи для пользователя {user_id}")
+    logger.info(f"Данные пользователя: {data.get('users', {}).get(user_id)}")
+    
     if user_id not in data['users'] or not data['users'][user_id]:
         await callback.answer("❌ Нет записи для отмены")
         return
@@ -353,16 +365,23 @@ async def confirm_cancel(callback: types.CallbackQuery):
     record = data['users'][user_id]
     slot_key = record['slot_key']
     
+    logger.info(f"Отменяем запись: {record}")
+    logger.info(f"Ключ слота: {slot_key}")
+    
     # Удаляем пользователя из слота
     if slot_key in data['slots']:
+        original_users = data['slots'][slot_key]['users']
         data['slots'][slot_key]['users'] = [
             u for u in data['slots'][slot_key]['users'] 
             if u.get('user_id') != user_id
         ]
+        logger.info(f"Удален из слота. Было пользователей: {len(original_users)}, стало: {len(data['slots'][slot_key]['users'])}")
     
     # Удаляем запись пользователя
     del data['users'][user_id]
     save_data(data)
+    
+    logger.info(f"Запись пользователя {user_id} удалена из базы данных")
     
     await callback.message.edit_text(
         f"✅ <b>Запись отменена!</b>\n\n"
@@ -375,7 +394,50 @@ async def confirm_cancel(callback: types.CallbackQuery):
 @dp.callback_query(lambda c: c.data == "keep_booking")
 async def keep_booking(callback: types.CallbackQuery):
     # Возвращаемся к просмотру записи
-    await cmd_my_records(callback.message)
+    data = load_data()
+    user_id = str(callback.from_user.id)
+    
+    if user_id not in data['users'] or not data['users'][user_id]:
+        await callback.message.edit_text("📝 У вас нет активных записей")
+        return
+    
+    record = data['users'][user_id]
+    
+    # Проверяем, можно ли отменить запись (за 24 часа)
+    can_cancel = True
+    try:
+        # Пытаемся распарсить дату и время
+        date_str = record['date'].split('(')[0]  # Убираем день недели
+        time_str = record['time'].split(' - ')[0]  # Берем только время начала
+        
+        # Парсим дату и время
+        appointment_dt = datetime.strptime(f"{date_str} {time_str}", "%d.%m.%Y %H:%M")
+        now = datetime.now()
+        
+        if appointment_dt - now < timedelta(hours=24):
+            can_cancel = False
+    except:
+        pass  # Если не удалось распарсить, разрешаем отмену
+    
+    response = (
+        f"📋 <b>Ваша запись:</b>\n\n"
+        f"📅 <b>Дата:</b> {record['date']}\n"
+        f"⏰ <b>Время:</b> {record['time']}\n"
+        f"📍 <b>Адрес:</b> {ADDRESS}\n"
+        f"👤 <b>Имя:</b> {record['user_name']}\n"
+    )
+    
+    if not can_cancel:
+        response += "\n⚠️ <b>Отмена недоступна:</b> менее 24 часов до собеседования"
+    
+    # Добавляем кнопку для отмены записи
+    builder = InlineKeyboardBuilder()
+    if can_cancel:
+        builder.button(text="❌ Отменить запись", callback_data="cancel_booking")
+    else:
+        builder.button(text="❌ Отмена недоступна", callback_data="no_cancel")
+    
+    await callback.message.edit_text(response, reply_markup=builder.as_markup(), parse_mode="HTML")
 
 @dp.callback_query(lambda c: c.data == "no_cancel")
 async def no_cancel(callback: types.CallbackQuery):
